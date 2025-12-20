@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Trash2, Users, Receipt, Calculator, UserPlus, DollarSign, ArrowRight, X, Edit2, Check, ChevronRight, ArrowLeft, Calendar, ShoppingBag, Camera, Image as ImageIcon, Maximize2, RefreshCw, CreditCard, Copy, Loader2, Power, AlertCircle, Globe } from 'lucide-react';
+import { Plus, Trash2, Users, Receipt, Calculator, UserPlus, DollarSign, ArrowRight, X, Edit2, Check, ChevronRight, ArrowLeft, Calendar, ShoppingBag, Camera, Image as ImageIcon, Maximize2, RefreshCw, CreditCard, Copy, Loader2, Power, AlertCircle, Globe, Minus } from 'lucide-react';
 
 // ==========================================
 // 0. 翻譯字典 (Translations)
@@ -7,10 +7,12 @@ import { Plus, Trash2, Users, Receipt, Calculator, UserPlus, DollarSign, ArrowRi
 const TRANSLATIONS = {
   zh: {
     appTitle: '分帳計算器',
+    // Nav & Views
     tabActivity: '活動',
     tabMembers: '成員',
     tabExpenses: '帳目',
     tabReport: '結算',
+    // Group
     newActivityBtn: '新活動',
     createActivity: '建立新活動',
     editActivity: '編輯活動',
@@ -19,6 +21,7 @@ const TRANSLATIONS = {
     exampleActivity: '例如：東京五天四夜',
     noActivity: '還沒有任何活動',
     createFirst: '建立第一個活動',
+    // Members
     addMember: '新增成員',
     enterName: '輸入名字',
     addBtn: '新增成員',
@@ -28,6 +31,7 @@ const TRANSLATIONS = {
     userInUse: '該使用者有相關帳目，無法刪除。',
     nameLabel: '名稱',
     payIdLabel: 'PayID',
+    // Expenses
     noExpenses: '尚無帳目',
     addExpense: '新增帳目',
     editExpense: '編輯帳目',
@@ -35,7 +39,7 @@ const TRANSLATIONS = {
     exampleItem: '例如：牛肉麵',
     whoPaid: '誰先付錢？',
     newMember: '新成員',
-    splitAmong: '分給誰？',
+    splitAmong: '分給誰？(點擊調整份數)',
     selectAll: '全選',
     cancelAll: '全部取消',
     camera: '拍照',
@@ -44,6 +48,7 @@ const TRANSLATIONS = {
     continueAdd: '繼續新增',
     complete: '完成',
     saveChanges: '儲存修改',
+    // Report
     totalSpending: '總支出',
     settlementPlan: '結算方案',
     noTransfer: '無需轉帳',
@@ -53,12 +58,14 @@ const TRANSLATIONS = {
     net: '淨結餘',
     copied: '已複製',
     copy: '複製',
+    // Camera
     cameraTitle: '拍攝單據',
     startCamera: '啟動相機',
     initCamera: '正在初始化相機...',
     alignReceipt: '將單據置於框內',
     cameraError: '無法啟動相機，請確認權限。',
     browserNoSupport: '您的瀏覽器不支援相機功能。',
+    // Alerts & Confirms
     alertTitle: '提示',
     confirmTitle: '確認',
     cancel: '取消',
@@ -77,10 +84,12 @@ const TRANSLATIONS = {
   },
   en: {
     appTitle: 'Split Bill Calculator',
+    // Nav & Views
     tabActivity: 'Activity',
     tabMembers: 'Members',
     tabExpenses: 'Expenses',
     tabReport: 'Report',
+    // Group
     newActivityBtn: 'New',
     createActivity: 'New Activity',
     editActivity: 'Edit Activity',
@@ -89,6 +98,7 @@ const TRANSLATIONS = {
     exampleActivity: 'e.g. Tokyo Trip',
     noActivity: 'No activities yet',
     createFirst: 'Create your first activity',
+    // Members
     addMember: 'Add Member',
     enterName: 'Enter name',
     addBtn: 'Add Member',
@@ -98,6 +108,7 @@ const TRANSLATIONS = {
     userInUse: 'User has related expenses.',
     nameLabel: 'Name',
     payIdLabel: 'PayID',
+    // Expenses
     noExpenses: 'No expenses yet',
     addExpense: 'Add Expense',
     editExpense: 'Edit Expense',
@@ -105,7 +116,7 @@ const TRANSLATIONS = {
     exampleItem: 'e.g. Dinner',
     whoPaid: 'Who Paid?',
     newMember: 'New',
-    splitAmong: 'Split Among',
+    splitAmong: 'Split Among (Tap to set portions)',
     selectAll: 'All',
     cancelAll: 'None',
     camera: 'Camera',
@@ -114,6 +125,7 @@ const TRANSLATIONS = {
     continueAdd: 'Save & Add',
     complete: 'Done',
     saveChanges: 'Save Changes',
+    // Report
     totalSpending: 'Total',
     settlementPlan: 'Settlement Plan',
     noTransfer: 'Settled',
@@ -123,12 +135,14 @@ const TRANSLATIONS = {
     net: 'Net',
     copied: 'Copied',
     copy: 'Copy',
+    // Camera
     cameraTitle: 'Scan Receipt',
     startCamera: 'Start Camera',
     initCamera: 'Initializing...',
     alignReceipt: 'Align receipt in frame',
     cameraError: 'Camera failed. Check permissions.',
     browserNoSupport: 'Browser does not support camera.',
+    // Alerts & Confirms
     alertTitle: 'Alert',
     confirmTitle: 'Confirm',
     cancel: 'Cancel',
@@ -355,6 +369,11 @@ const ExpenseFormModal = ({
   const [title, setTitle] = useState('');
   const [paymentBreakdown, setPaymentBreakdown] = useState({});
   const [splitAmong, setSplitAmong] = useState([]);
+  
+  // NEW: State for Shares (Portions)
+  // { 'UserA': 2, 'UserB': 1 }
+  const [splitShares, setSplitShares] = useState({});
+
   const [image, setImage] = useState(null);
   
   const [showCamera, setShowCamera] = useState(false);
@@ -373,6 +392,13 @@ const ExpenseFormModal = ({
         users.forEach(u => pb[u] = initialData.paidBy[u] || '');
         setPaymentBreakdown(pb);
         setSplitAmong(initialData.splitAmong);
+        // Load shares, default to 1 if not present (backward compatibility)
+        const shares = initialData.splitShares || {};
+        // Ensure all split users have a share value in state
+        initialData.splitAmong.forEach(u => {
+            if (!shares[u]) shares[u] = 1;
+        });
+        setSplitShares(shares);
         setImage(initialData.image || null);
       } else {
         resetForm();
@@ -384,6 +410,10 @@ const ExpenseFormModal = ({
     setTitle('');
     setPaymentBreakdown(users.reduce((acc, u) => ({ ...acc, [u]: '' }), {}));
     setSplitAmong([...users]); 
+    // Default shares to 1 for everyone
+    const defaultShares = {};
+    users.forEach(u => defaultShares[u] = 1);
+    setSplitShares(defaultShares);
     setImage(null);
   };
 
@@ -409,18 +439,27 @@ const ExpenseFormModal = ({
       setAlertMsg(t('errNoSplitter'));
       return;
     }
+
+    // Clean up shares data: only keep shares for selected users
+    const finalShares = {};
+    splitAmong.forEach(u => {
+        finalShares[u] = splitShares[u] || 1;
+    });
+
     const expenseData = {
       id: initialData ? initialData.id : Date.now(),
       title,
       total,
       paidBy: finalPaidBy,
       splitAmong,
+      splitShares: finalShares, // Save shares
       image
     };
     onSave(expenseData, shouldClose);
     if (!shouldClose) {
       setTitle('');
       setPaymentBreakdown(users.reduce((acc, u) => ({ ...acc, [u]: '' }), {}));
+      // Keep splitAmong and shares for convenience in next entry
       setImage(null);
     }
   };
@@ -452,11 +491,21 @@ const ExpenseFormModal = ({
     if (name) {
       if (onAddUser(name)) {
         setSplitAmong(prev => [...prev, name]);
+        setSplitShares(prev => ({...prev, [name]: 1}));
         setPaymentBreakdown(prev => ({ ...prev, [name]: '' }));
         setInlineUserName('');
         setShowInlineAddUser(false);
       }
     }
+  };
+
+  // Helper to adjust shares
+  const adjustShare = (user, delta) => {
+    setSplitShares(prev => {
+      const current = prev[user] || 1;
+      const newValue = Math.max(1, current + delta); // Min 1 share
+      return { ...prev, [user]: newValue };
+    });
   };
 
   if (!isOpen) return null;
@@ -528,16 +577,65 @@ const ExpenseFormModal = ({
             </div>
           </div>
 
-          {/* Split */}
+          {/* Split (Updated with Shares) */}
           <div className="bg-white p-4 rounded-xl shadow-sm mb-20 border border-gray-100">
             <div className="flex justify-between items-center mb-3">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">{t('splitAmong')}</label>
-              <button onClick={() => setSplitAmong(splitAmong.length === users.length ? [] : [...users])} className="text-xs text-blue-500 font-medium">{splitAmong.length === users.length ? t('cancelAll') : t('selectAll')}</button>
+              <button onClick={() => {
+                  if (splitAmong.length === users.length) setSplitAmong([]);
+                  else {
+                      setSplitAmong([...users]);
+                      // Ensure default shares
+                      const newShares = {...splitShares};
+                      users.forEach(u => { if(!newShares[u]) newShares[u] = 1; });
+                      setSplitShares(newShares);
+                  }
+              }} className="text-xs text-blue-500 font-medium">{splitAmong.length === users.length ? t('cancelAll') : t('selectAll')}</button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {users.map(user => (
-                <button key={user} onClick={() => setSplitAmong(splitAmong.includes(user) ? splitAmong.filter(u => u !== user) : [...splitAmong, user])} className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${splitAmong.includes(user) ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'}`}>{user}</button>
-              ))}
+              {users.map(user => {
+                const isSelected = splitAmong.includes(user);
+                const shareCount = splitShares[user] || 1;
+                return isSelected ? (
+                   // Selected State with Counter
+                   <div key={user} className="flex items-center bg-blue-50 border border-blue-200 rounded-lg overflow-hidden transition-all shadow-sm">
+                      <button 
+                        onClick={() => setSplitAmong(splitAmong.filter(u => u !== user))}
+                        className="px-3 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 border-r border-blue-100"
+                      >
+                        {user}
+                      </button>
+                      <div className="flex items-center">
+                        <button 
+                          onClick={() => adjustShare(user, -1)}
+                          className={`w-7 h-full flex items-center justify-center text-blue-600 hover:bg-blue-100 ${shareCount <= 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                          disabled={shareCount <= 1}
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="w-6 text-center text-xs font-bold text-blue-800">{shareCount}</span>
+                        <button 
+                          onClick={() => adjustShare(user, 1)}
+                          className="w-7 h-full flex items-center justify-center text-blue-600 hover:bg-blue-100"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                   </div>
+                ) : (
+                   // Unselected State
+                   <button 
+                     key={user} 
+                     onClick={() => {
+                        setSplitAmong([...splitAmong, user]);
+                        if (!splitShares[user]) setSplitShares(prev => ({...prev, [user]: 1}));
+                     }} 
+                     className="px-3 py-2 rounded-lg text-sm font-medium border border-gray-200 bg-white text-gray-500 hover:border-gray-300 transition-colors"
+                   >
+                     {user}
+                   </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -569,31 +667,15 @@ const ExpenseFormModal = ({
 // 4. 主程式 (Main App)
 // ==========================================
 const SplitBillApp = () => {
-  // 安全讀取 LocalStorage 函式
-  const safeParseJSON = (key, defaultValue) => {
-    if (typeof window === 'undefined') return defaultValue;
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
-    } catch (error) {
-      console.warn(`Error reading ${key} from localStorage:`, error);
-      return defaultValue;
-    }
-  };
-
-  const [lang, setLang] = useState(() => {
-    const savedLang = typeof window !== 'undefined' ? window.localStorage.getItem('lang') : 'zh';
-    return (savedLang === 'zh' || savedLang === 'en') ? savedLang : 'zh';
-  });
-
+  const [lang, setLang] = useState('zh');
   const [currentView, setCurrentView] = useState('GROUPS'); 
   const [activeTab, setActiveTab] = useState('expenses'); 
   
-  // Persist state with Safety
-  const [users, setUsers] = useState(() => safeParseJSON('users', ['Member A', 'Member B'])); 
-  const [payIds, setPayIds] = useState(() => safeParseJSON('payIds', {}));
-  const [groups, setGroups] = useState(() => safeParseJSON('groups', []));
-  const [expenses, setExpenses] = useState(() => safeParseJSON('expenses', []));
+  // Persist state
+  const [users, setUsers] = useState(() => JSON.parse(localStorage.getItem('users')) || ['Member A', 'Member B']); 
+  const [payIds, setPayIds] = useState(() => JSON.parse(localStorage.getItem('payIds')) || {});
+  const [groups, setGroups] = useState(() => JSON.parse(localStorage.getItem('groups')) || []);
+  const [expenses, setExpenses] = useState(() => JSON.parse(localStorage.getItem('expenses')) || []);
   
   const [selectedGroupId, setSelectedGroupId] = useState(null);
 
@@ -603,11 +685,13 @@ const SplitBillApp = () => {
   useEffect(() => { localStorage.setItem('expenses', JSON.stringify(expenses)); }, [expenses]);
   useEffect(() => { localStorage.setItem('lang', lang); }, [lang]);
 
+  useEffect(() => {
+    const savedLang = localStorage.getItem('lang');
+    if(savedLang) setLang(savedLang);
+  }, []);
+
   const toggleLang = () => setLang(l => l === 'zh' ? 'en' : 'zh');
-  const t = (key) => {
-    const dict = TRANSLATIONS[lang] || TRANSLATIONS['zh'];
-    return dict[key] || key;
-  };
+  const t = (key) => TRANSLATIONS[lang][key] || key;
 
   // Modal Control
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
@@ -618,13 +702,13 @@ const SplitBillApp = () => {
   const [groupDateInput, setGroupDateInput] = useState('');
   
   const [newUserName, setNewUserName] = useState('');
-  const [newUserPayId, setNewUserPayId] = useState(''); // New state for inline adding payid
+  const [newUserPayId, setNewUserPayId] = useState(''); 
   const [editingUser, setEditingUser] = useState(null);
   const [editUserNameInput, setEditUserNameInput] = useState('');
   const [editUserPayIdInput, setEditUserPayIdInput] = useState(''); 
   const [viewingImage, setViewingImage] = useState(null);
   const [userAlertMsg, setUserAlertMsg] = useState(null);
-  const [showGroupDeleteConfirm, setShowGroupDeleteConfirm] = useState(null); // store group id
+  const [showGroupDeleteConfirm, setShowGroupDeleteConfirm] = useState(null); 
 
   // Helpers
   const currentGroup = groups.find(g => g.id === selectedGroupId);
@@ -651,7 +735,6 @@ const SplitBillApp = () => {
     setExpenses(prev => prev.filter(e => e.id !== id));
   };
 
-  // 修正：新增成員函式定義
   const handleAddUser = (name) => { 
     const n = name.trim(); 
     if(n && !users.includes(n)) { setUsers([...users, n]); return true; } 
@@ -684,6 +767,7 @@ const SplitBillApp = () => {
      setExpenses(prev => prev.map(e => {
        const pb = {...e.paidBy}; if(pb[oldN]){pb[newN]=pb[oldN]; delete pb[oldN];}
        const sa = e.splitAmong.map(s=>s===oldN?newN:s);
+       // Handle shares rename if implemented or just rebuild
        return {...e, paidBy:pb, splitAmong:sa};
      }));
      setEditingUser(null);
@@ -721,26 +805,42 @@ const SplitBillApp = () => {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    
     try {
       document.execCommand('copy');
       setUserAlertMsg(`${t('copied')}: ${text}`);
     } catch (err) {
       console.error('Copy failed', err);
     }
-    
     document.body.removeChild(textArea);
   };
 
+  // --- REPORT LOGIC UPDATE FOR SHARES ---
   const report = useMemo(() => {
     const stats = {}; users.forEach(u => stats[u] = { paid: 0, share: 0, net: 0 });
     let totalSpending = 0;
     currentGroupExpenses.forEach(e => {
       totalSpending += e.total;
-      const share = e.total / e.splitAmong.length;
-      e.splitAmong.forEach(u => { if(stats[u]) { stats[u].share += share; stats[u].net -= share; } });
+      
+      // Calculate total portions
+      let totalPortions = 0;
+      e.splitAmong.forEach(u => {
+          totalPortions += (e.splitShares && e.splitShares[u]) ? e.splitShares[u] : 1;
+      });
+      
+      // Cost per portion
+      const costPerPortion = totalPortions > 0 ? e.total / totalPortions : 0;
+
+      e.splitAmong.forEach(u => { 
+        if(stats[u]) { 
+           const myShares = (e.splitShares && e.splitShares[u]) ? e.splitShares[u] : 1;
+           const myCost = costPerPortion * myShares;
+           stats[u].share += myCost; 
+           stats[u].net -= myCost; 
+        } 
+      });
       Object.entries(e.paidBy).forEach(([u, amt]) => { if(stats[u]) { stats[u].paid += amt; stats[u].net += amt; } });
     });
+    
     const d=[], c=[];
     Object.entries(stats).forEach(([u, s]) => {
        if(s.net < -0.01) d.push({user:u, val:s.net});
@@ -750,7 +850,6 @@ const SplitBillApp = () => {
     const tx=[]; let i=0,j=0;
     while(i<d.length && j<c.length){
       const amt = Math.min(Math.abs(d[i].val), c[j].val);
-      // 修正：這裡的 map callback 參數改名為 txItem，避免與翻譯函式 t 衝突
       tx.push({from:d[i].user, to:c[j].user, amount:amt.toFixed(1), payId:payIds[c[j].user]});
       d[i].val += amt; c[j].val -= amt;
       if(Math.abs(d[i].val)<0.01)i++; if(Math.abs(c[j].val)<0.01)j++;
@@ -871,8 +970,17 @@ const SplitBillApp = () => {
                           {e.image ? <img src={e.image} className="w-full h-full object-cover" /> : <Receipt className="w-6 h-6" />}
                         </div>
                         <div>
-                          <h3 className="font-bold text-gray-800">{e.title}</h3>
-                          <div className="text-xs text-gray-500">{t('paid')}: {Object.keys(e.paidBy).filter(k=>e.paidBy[k]>0).map(k=>`${k}`).join(', ')}</div>
+                          <div className="flex items-center gap-2">
+                             <h3 className="font-bold text-gray-800">{e.title}</h3>
+                             {/* Share Indicator */}
+                             {Object.values(e.splitShares || {}).some(s => s > 1) && (
+                                <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 rounded-full font-bold">加權</span>
+                             )}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-0.5">{t('paid')}: {Object.keys(e.paidBy).filter(k=>e.paidBy[k]>0).map(k=>`${k}`).join(', ')}</div>
+                          <div className="text-xs text-gray-400 mt-0.5 max-w-[150px] truncate">
+                             {e.splitAmong.map(u => (e.splitShares && e.splitShares[u] > 1) ? `${u}(x${e.splitShares[u]})` : u).join(', ')}
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
@@ -995,3 +1103,4 @@ const SplitBillApp = () => {
 };
 
 export default SplitBillApp;
+
